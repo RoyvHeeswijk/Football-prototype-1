@@ -11,38 +11,39 @@ export default function Home() {
           className="w-full rounded-lg scale-x-[-1]" 
           autoPlay
           playsInline
+          muted // Added muted attribute for mobile autoplay
         ></video>
 
         <div className="w-full">
           <div className="flex gap-3 flex-wrap justify-center">
             <button
               className="rounded-full bg-foreground text-background px-4 py-2 text-sm"
-              onClick={() => {
+              onClick={async () => { // Made async to use try-catch
                 const video = document.getElementById('videoElement') as HTMLVideoElement;
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                  navigator.mediaDevices.enumerateDevices()
-                    .then(devices => {
-                      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                      if (videoDevices.length > 0) {
-                        return navigator.mediaDevices.getUserMedia({ 
-                          video: {
-                            deviceId: videoDevices[0].deviceId,
-                            facingMode: "user",
-                            width: { ideal: 720 },
-                            height: { ideal: 480 }
-                          }
-                        });
-                      } else {
-                        throw new Error('No video devices found');
+                try {
+                  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    if (videoDevices.length === 0) {
+                      throw new Error('No video devices found');
+                    }
+
+                    // Try to use the front camera on mobile
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                      video: {
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
                       }
-                    })
-                    .then((stream) => {
-                      video.srcObject = stream;
-                      (window as any).currentStream = stream;
-                    })
-                    .catch((err) => {
-                      console.error("Error accessing camera:", err);
                     });
+
+                    video.srcObject = stream;
+                    (window as any).currentStream = stream;
+                  }
+                } catch (err) {
+                  console.error("Error accessing camera:", err);
+                  alert('Failed to access camera. Please ensure you have granted camera permissions.');
                 }
               }}
             >
@@ -72,12 +73,38 @@ export default function Home() {
             <button
               id="startRecording"
               className="rounded-full bg-red-500 text-white px-4 py-2 text-sm"
-              onClick={() => {
-                const stream = (window as any).currentStream;
-                if (stream) {
+              onClick={async () => { // Made async for better error handling
+                try {
+                  const stream = (window as any).currentStream;
+                  if (!stream) {
+                    alert('Please start the camera first');
+                    return;
+                  }
+
+                  // Check for supported MIME types
+                  const mimeTypes = [
+                    'video/webm;codecs=vp9',
+                    'video/webm;codecs=vp8',
+                    'video/webm',
+                    'video/mp4'
+                  ];
+
+                  let selectedMimeType = '';
+                  for (const mimeType of mimeTypes) {
+                    if (MediaRecorder.isTypeSupported(mimeType)) {
+                      selectedMimeType = mimeType;
+                      break;
+                    }
+                  }
+
+                  if (!selectedMimeType) {
+                    throw new Error('No supported video MIME type found');
+                  }
+
                   const mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: 'video/webm;codecs=vp9'
+                    mimeType: selectedMimeType
                   });
+                  
                   const chunks: BlobPart[] = [];
                   
                   mediaRecorder.ondataavailable = (e) => {
@@ -87,7 +114,7 @@ export default function Home() {
                   };
 
                   mediaRecorder.onstop = () => {
-                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const blob = new Blob(chunks, { type: selectedMimeType });
                     const downloadButton = document.getElementById('downloadVideo');
                     if (downloadButton) {
                       downloadButton.style.display = 'block';
@@ -102,6 +129,9 @@ export default function Home() {
                   const stopButton = document.getElementById('stopRecording');
                   if (startButton) startButton.style.display = 'none';
                   if (stopButton) stopButton.style.display = 'block';
+                } catch (err) {
+                  console.error('Error starting recording:', err);
+                  alert('Failed to start recording. Please try again.');
                 }
               }}
             >
@@ -133,17 +163,29 @@ export default function Home() {
               className="rounded-full bg-green-500 text-white px-4 py-2 text-sm"
               style={{ display: 'none' }}
               onClick={() => {
-                const blob = (window as any).recordedBlob;
-                if (blob) {
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                  a.href = url;
-                  a.download = `recorded-video-${timestamp}.webm`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
+                try {
+                  const blob = (window as any).recordedBlob;
+                  if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.href = url;
+                    a.download = `recorded-video-${timestamp}.webm`;
+                    
+                    // For mobile devices, open in new tab if download doesn't work
+                    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                      window.open(url, '_blank');
+                    } else {
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }
+                    
+                    URL.revokeObjectURL(url);
+                  }
+                } catch (err) {
+                  console.error('Error downloading video:', err);
+                  alert('Failed to download video. Please try again.');
                 }
               }}
             >
