@@ -11,14 +11,14 @@ export default function Home() {
           className="w-full rounded-lg scale-x-[-1]" 
           autoPlay
           playsInline
-          muted // Added muted attribute for mobile autoplay
+          muted
         ></video>
 
         <div className="w-full">
           <div className="flex gap-3 flex-wrap justify-center">
             <button
               className="rounded-full bg-foreground text-background px-4 py-2 text-sm"
-              onClick={async () => { // Made async to use try-catch
+              onClick={async () => {
                 const video = document.getElementById('videoElement') as HTMLVideoElement;
                 try {
                   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -29,7 +29,7 @@ export default function Home() {
                       throw new Error('No video devices found');
                     }
 
-                    // Try to use the front camera on mobile
+                 
                     const stream = await navigator.mediaDevices.getUserMedia({
                       video: {
                         facingMode: 'user',
@@ -73,7 +73,7 @@ export default function Home() {
             <button
               id="startRecording"
               className="rounded-full bg-red-500 text-white px-4 py-2 text-sm"
-              onClick={async () => { // Made async for better error handling
+              onClick={async () => { 
                 try {
                   const stream = (window as any).currentStream;
                   if (!stream) {
@@ -81,7 +81,7 @@ export default function Home() {
                     return;
                   }
 
-                  // Check for supported MIME types
+                
                   const mimeTypes = [
                     'video/webm;codecs=vp9',
                     'video/webm;codecs=vp8',
@@ -162,30 +162,42 @@ export default function Home() {
               id="downloadVideo"
               className="rounded-full bg-green-500 text-white px-4 py-2 text-sm"
               style={{ display: 'none' }}
-              onClick={() => {
+              onClick={async () => {
                 try {
                   const blob = (window as any).recordedBlob;
                   if (blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    a.href = url;
-                    a.download = `recorded-video-${timestamp}.webm`;
-                    
-                    // For mobile devices, open in new tab if download doesn't work
-                    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-                      window.open(url, '_blank');
+                    const file = new File([blob], `recorded-video-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`, {
+                      type: blob.type
+                    });
+
+                    if (navigator.share && navigator.canShare({ files: [file] })) {
+                      try {
+                        await navigator.share({
+                          files: [file],
+                          title: 'Recorded Video',
+                        });
+                      } catch (err) {
+                        console.error('Error sharing:', err);
+                        // Fallback for sharing error
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                        URL.revokeObjectURL(url);
+                      }
                     } else {
+                      // Fallback for desktop or unsupported browsers
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = file.name;
                       document.body.appendChild(a);
                       a.click();
                       document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
                     }
-                    
-                    URL.revokeObjectURL(url);
                   }
                 } catch (err) {
-                  console.error('Error downloading video:', err);
-                  alert('Failed to download video. Please try again.');
+                  console.error('Error handling video:', err);
+                  alert('Failed to share/download video. Please try again.');
                 }
               }}
             >
