@@ -10,7 +10,7 @@ export default function Home() {
         
         <video 
           id="videoElement"
-          className="w-full max-w-lg rounded-lg"
+          className="w-full max-w-lg rounded-lg scale-x-[-1]" 
           autoPlay
           playsInline
         ></video>
