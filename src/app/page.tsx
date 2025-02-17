@@ -178,13 +178,13 @@ export default function Home() {
                         });
                       } catch (err) {
                         console.error('Error sharing:', err);
-                        // Fallback for sharing error
+                  
                         const url = URL.createObjectURL(blob);
                         window.open(url, '_blank');
                         URL.revokeObjectURL(url);
                       }
                     } else {
-                      // Fallback for desktop or unsupported browsers
+                   
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
