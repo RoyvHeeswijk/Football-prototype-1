@@ -1,14 +1,56 @@
 "use client";
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function Home() {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState('');
+  const router = useRouter();
+
+  const analyzeVideo = async (videoBlob: Blob) => {
+    setIsAnalyzing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', videoBlob);
+
+      const response = await fetch('/api/analyze-video', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to analyze video');
+      }
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        // Create object URL for video
+        const videoUrl = URL.createObjectURL(videoBlob);
+        // Navigate to review page with results
+        router.push(`/review?video=${encodeURIComponent(videoUrl)}&result=${encodeURIComponent(JSON.stringify(data.result))}`);
+      } else {
+        throw new Error('Analysis failed');
+      }
+
+    } catch (error) {
+      console.error('Error analyzing video:', error);
+      alert('Er ging iets mis bij het analyseren van de video. Probeer het opnieuw.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
     <div className="bg-[#002020] grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-4 pb-16 gap-8 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-6 row-start-2 items-center w-full max-w-lg px-4">
         <h1 className="text-2xl font-bold">Camera</h1>
         <h2>Deze video is lit</h2>
-        <video 
+        <video
           id="videoElement"
-          className="w-full rounded-lg scale-x-[-1]" 
+          className="w-full rounded-lg scale-x-[-1]"
           autoPlay
           playsInline
           muted
@@ -24,12 +66,12 @@ export default function Home() {
                   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                     const devices = await navigator.mediaDevices.enumerateDevices();
                     const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                    
+
                     if (videoDevices.length === 0) {
                       throw new Error('No video devices found');
                     }
 
-                 
+
                     const stream = await navigator.mediaDevices.getUserMedia({
                       video: {
                         facingMode: 'user',
@@ -73,7 +115,7 @@ export default function Home() {
             <button
               id="startRecording"
               className="rounded-full bg-red-500 text-white px-4 py-2 text-sm"
-              onClick={async () => { 
+              onClick={async () => {
                 try {
                   const stream = (window as any).currentStream;
                   if (!stream) {
@@ -81,7 +123,7 @@ export default function Home() {
                     return;
                   }
 
-                
+
                   const mimeTypes = [
                     'video/webm;codecs=vp9',
                     'video/webm;codecs=vp8',
@@ -104,17 +146,49 @@ export default function Home() {
                   const mediaRecorder = new MediaRecorder(stream, {
                     mimeType: selectedMimeType
                   });
-                  
+
                   const chunks: BlobPart[] = [];
-                  
+
                   mediaRecorder.ondataavailable = (e) => {
                     if (e.data.size > 0) {
                       chunks.push(e.data);
                     }
                   };
 
-                  mediaRecorder.onstop = () => {
+                  mediaRecorder.onstop = async () => {
                     const blob = new Blob(chunks, { type: selectedMimeType });
+
+                    try {
+                      const formData = new FormData();
+                      formData.append('file', blob);
+
+                      const response = await fetch('/api/analyze-video', {
+                        method: 'POST',
+                        body: formData,
+                      });
+
+                      if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to analyze video');
+                      }
+
+                      const data = await response.json();
+
+                      if (data.status === 'success') {
+                        // Create object URL for video
+                        const videoUrl = URL.createObjectURL(blob);
+                        // Navigate to review page with results
+                        router.push(`/review?video=${encodeURIComponent(videoUrl)}&result=${encodeURIComponent(JSON.stringify(data.result))}`);
+                      } else {
+                        throw new Error('Analysis failed');
+                      }
+
+                    } catch (error) {
+                      console.error('Error analyzing video:', error);
+                      alert('Er ging iets mis bij het analyseren van de video. Probeer het opnieuw.');
+                    }
+
+                    // Behoud de bestaande downloadButton logica
                     const downloadButton = document.getElementById('downloadVideo');
                     if (downloadButton) {
                       downloadButton.style.display = 'block';
@@ -124,7 +198,7 @@ export default function Home() {
 
                   mediaRecorder.start(1000);
                   (window as any).currentRecorder = mediaRecorder;
-                  
+
                   const startButton = document.getElementById('startRecording');
                   const stopButton = document.getElementById('stopRecording');
                   if (startButton) startButton.style.display = 'none';
@@ -147,7 +221,7 @@ export default function Home() {
                 if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                   mediaRecorder.stop();
                   (window as any).currentRecorder = null;
-                  
+
                   const startButton = document.getElementById('startRecording');
                   const stopButton = document.getElementById('stopRecording');
                   if (startButton) startButton.style.display = 'block';
@@ -178,13 +252,13 @@ export default function Home() {
                         });
                       } catch (err) {
                         console.error('Error sharing:', err);
-                  
+
                         const url = URL.createObjectURL(blob);
                         window.open(url, '_blank');
                         URL.revokeObjectURL(url);
                       }
                     } else {
-                   
+
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
@@ -210,6 +284,9 @@ export default function Home() {
       <footer className="row-start-3 text-center text-xs px-4">
         <p>Je moet ervoor zorgen dat je de Camera aanzet om te gebruiken.</p>
       </footer>
+
+      {isAnalyzing && <div className="loader">Analyzing video...</div>}
+      {analysisResult && <div className="analysis-result">{analysisResult}</div>}
     </div>
   );
 }
