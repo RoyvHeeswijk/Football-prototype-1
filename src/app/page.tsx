@@ -27,7 +27,8 @@ export default function Home() {
       if (!response.ok) throw new Error('Failed to analyze image');
 
       const data = await response.json();
-      router.push(`/review?result=${encodeURIComponent(JSON.stringify(data))}`);
+      localStorage.setItem('imageAnalysis', JSON.stringify(data));
+      router.push('/review');
     } catch (error) {
       console.error('Error:', error);
       alert('Error analyzing image. Please try again.');
