@@ -17,7 +17,7 @@ function rgbToHex(r: number, g: number, b: number): string {
 async function getMainColors(buffer: Buffer) {
     try {
         const { dominant } = await sharp(buffer).stats();
-        
+
         const r = dominant.r;
         const g = dominant.g;
         const b = dominant.b;
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 
         // Get color values
         const colorData = await getMainColors(buffer);
-        
+
         // Use GPT-3.5-turbo to name the color
         const analysis = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
